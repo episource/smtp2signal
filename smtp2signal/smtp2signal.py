@@ -156,9 +156,9 @@ class Smtp2SignalHandler:
 
         logging.warning(f"building signal with options {options}")
         if (not options.get("to")):
-            raise RuntimeException(f"rcpttos[0] is missing to-argument: {rcpttos[0]}")
+            raise RuntimeError(f"rcpttos[0] is missing to-argument: {rcpttos[0]}")
         if (not options.get("from")):
-            raise RuntimeException(f"rcpttos[0] is missing from-argument: {rcpttos[0]}")
+            raise RuntimeError(f"rcpttos[0] is missing from-argument: {rcpttos[0]}")
 
         text = ""
         if (not str2bool(options.get("omit_subject"))):
