@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 aiohttp = "*"
 aiosmtpd = {git = "https://github.com/aio-libs/aiosmtpd.git"}
+html2text = "*"
 
 [dev-packages]
 

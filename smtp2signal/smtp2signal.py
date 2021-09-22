@@ -7,6 +7,7 @@ import asyncio
 import base64
 import email
 import email.policy
+import html2text
 import json
 import logging
 import os
@@ -85,7 +86,6 @@ class TokenAuthenticator:
             with open(SIGNAL_SMTP_TOKEN_FILE, "w+") as f: f.write(self.token)
 
     def __call__(self, server, session, envelope, mechanism, auth_data):
-        logging.warning("auth requested")
         fail_nothandled = aiosmtpd.smtp.AuthResult(success=False, handled=False)
         if mechanism not in ("LOGIN", "PLAIN"):
             logging.warning("unsupported auth mechanism attempted")
@@ -103,12 +103,17 @@ class TokenAuthenticator:
 class Smtp2SignalHandler:
     def __init__(self, rest_client):
         self.rest_client = rest_client
+        self.html2text = html2text.HTML2Text(bodywidth=0)
+        self.html2text.ignore_tables = True
     
     async def handle_DATA(self, server, session, envelope):
         try:
             peer = session.peer
             mailfrom = envelope.mail_from
             rcpttos = envelope.rcpt_tos
+
+            with open("/home/last_message", "wb+") as f: f.write(envelope.content)
+
             mail_message = email.message_from_bytes(envelope.content, policy=SMTP_POLICY)
 
             self.send_signal_as_task(**self.build_signal(rcpttos, mail_message))
@@ -129,25 +134,37 @@ class Smtp2SignalHandler:
 
 
         mail_subject = mail_message['subject']
-        mail_text = mail_message.get_body(preferencelist=('plain')).get_content()
+        mail_body = mail_message.get_body(preferencelist=('plain'))
+        mail_text = mail_body.get_content() if mail_body else None
+        if (not mail_body):
+            mail_body = mail_message.get_body(preferencelist=('html'))
+            mail_text = self.html2text.handle(mail_body.get_content()) if mail_body else None
+        if (not mail_body):
+            mail_body = mail_message
+            mail_text = mail_message.get_content()
+        
         first_attachment = next((a.get_content() for a in mail_message.iter_attachments()), None)
 
         addr_parts = rcpttos[0].strip("<> ").split('@', 1)
-        from_number = addr_parts[1]
+        # ignore domain part
 
         # local part of RCPT TO (as per RFC5321) ist treated as url query string
-        # with the exception that "+" is treated literally and not replaced by space
-        options = parse_qs(addr_parts[0].replace("+","%2B"))
+        # with the following exceptions:
+        # 1. "+" is treated literally and not replaced by space
+        # 2. (unencoded) literal "--" is replaced by "="
+        options = parse_qs(addr_parts[0].replace("+","%2B").replace("--","="))
 
-        logging.warning(f"building signal from_number {from_number} with options {options}")
-        if (not options["to"]):
+        logging.warning(f"building signal with options {options}")
+        if (not options.get("to")):
             raise RuntimeException(f"rcpttos[0] is missing to-argument: {rcpttos[0]}")
+        if (not options.get("from")):
+            raise RuntimeException(f"rcpttos[0] is missing from-argument: {rcpttos[0]}")
 
         text = ""
-        if (not str2bool(options["omit_subject"])):
+        if (not str2bool(options.get("omit_subject"))):
             text += mail_subject
-        if (not str2bool(options["omit_body"])):
-            if (not str2bool(options["omit_subject"])):
+        if (not str2bool(options.get("omit_body"))):
+            if (not str2bool(options.get("omit_subject"))):
                 text += options.get("body_separator", "\n\n")
             line_selectors = "/".join(ensure_list(options.get("lines", "all"))).split("/")
             for selector in line_selectors:
@@ -166,7 +183,7 @@ class Smtp2SignalHandler:
                 text += "\n"
 
         signal = {
-            "from_number": from_number,
+            "from_number": ensure_list(options["from"])[-1],
             "to": options["to"],
             "text": text.strip(),
             "binary_attachment": first_attachment
