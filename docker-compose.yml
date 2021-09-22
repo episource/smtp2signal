@@ -1,0 +1,21 @@
+version: "3"
+services:
+  smtp2signal:
+    hostname: smtp2signal
+    build: ./smtp2signal
+    restart: always
+    environment:
+      SIGNAL_CLI_BASE_URL: http://signal-cli-rest-api:8080/
+      SIGNAL_SMTP_TOKEN_FILE: /home/smtp2signal.token 
+    ports:
+      - 8025:8025
+    volumes:
+      - "./data/smtp2signal:/home"
+  signal-cli-rest-api:
+    image: bbernhard/signal-cli-rest-api:latest
+    restart: always
+    environment:
+      - USE_NATIVE=1
+      - "AUTO_RECEIVE_SCHEDULE=*/10 * * * *"
+    volumes:
+      - "./data/signal-cli:/home/.local/share/signal-cli" 
