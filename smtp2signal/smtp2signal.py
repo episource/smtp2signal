@@ -153,10 +153,16 @@ class Smtp2SignalHandler:
         options = parse_qs(addr_parts[0].replace("+","%2B").replace("--","="))
 
         logging.warning(f"building signal with options {options}")
-        if (not options.get("to")):
-            raise RuntimeError(f"rcpttos[0] is missing to-argument: {rcpttos[0]}")
+        if (not options.get("to") and not options.get("to_group")):
+            raise RuntimeError(f"rcpttos[0] is missing to/to_group-argument: {rcpttos[0]}")
         if (not options.get("from")):
             raise RuntimeError(f"rcpttos[0] is missing from-argument: {rcpttos[0]}")
+
+        if (options.get("to_group")):
+            to_raw = ensure_list(options.get("to_group"))[-1]
+            to = [ "group." + base64.b64encode(to_raw.encode("utf-8")).decode("utf-8") ]
+        else:
+            to = ensure_list(options.get("to"))
 
         text = ""
         if (not str2bool(options.get("omit_subject"))):
@@ -182,7 +188,7 @@ class Smtp2SignalHandler:
 
         signal = {
             "from_number": ensure_list(options["from"])[-1],
-            "to": options["to"],
+            "to": to,
             "text": text.strip(),
             "binary_attachment": first_attachment
         }
