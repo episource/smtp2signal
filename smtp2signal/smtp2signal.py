@@ -112,8 +112,6 @@ class Smtp2SignalHandler:
             mailfrom = envelope.mail_from
             rcpttos = envelope.rcpt_tos
 
-            with open("/home/last_message", "wb+") as f: f.write(envelope.content)
-
             mail_message = email.message_from_bytes(envelope.content, policy=SMTP_POLICY)
 
             self.send_signal_as_task(**self.build_signal(rcpttos, mail_message))
