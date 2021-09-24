@@ -12,10 +12,9 @@ services:
     volumes:
       - "./data/smtp2signal:/home"
   signal-cli-rest-api:
-    image: bbernhard/signal-cli-rest-api:latest
+    image: bbernhard/signal-cli-rest-api:0.76-jsonrpc-dev
     restart: always
     environment:
-      - USE_NATIVE=1
-      - "AUTO_RECEIVE_SCHEDULE=*/10 * * * *"
+      - MODE=json-rpc
     volumes:
       - "./data/signal-cli:/home/.local/share/signal-cli" 
