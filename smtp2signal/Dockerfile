@@ -11,7 +11,7 @@ RUN mkdir /tmp/pipenv
 WORKDIR /tmp/pipenv
 RUN pip install pipenv
 COPY Pipfile* /tmp/pipenv/
-RUN pipenv lock --keep-outdated --requirements > requirements.txt
+RUN pipenv requirements > requirements.txt
 
 WORKDIR /install
 RUN pip install --prefix=/install -r /tmp/pipenv/requirements.txt
