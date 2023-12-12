@@ -12,7 +12,7 @@ services:
     volumes:
       - "./data/smtp2signal:/home"
   signal-cli-rest-api:
-    image: bbernhard/signal-cli-rest-api:0.63
+    image: bbernhard/signal-cli-rest-api:0.70
     restart: always
     environment:
       - MODE=json-rpc
