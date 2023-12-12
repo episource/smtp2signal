@@ -10,15 +10,15 @@ This projects provides a dockerized smtp server that forwards incoming mails as 
 - Done. The smtp server now listens at port 8025 (all interfaces). See [Signal Message Routing](#signal-message-routing) for howto send messages.
 
 # Signal Message Routing
-The smtp server evaulates the first mail recipient's address:
+The smtp server evaluates the first mail recipient's address:
 - The domain part (right side of @) must be valid but is ignored otherwise
 - The local part (left side of @) is parsed as query string with the following exceptions:
   * `+` is treated literally and not replaced by space
   * `--` maybe used to substitute `=` if not supported by mail client
 - If an argument is expected only once, but given multiple times, the last argument value takes precedence. The following arguments are supported:
   * `from`: required once - sender account number; must be registered for use with signal-cli, otherwise sending the signal message will be refused
-  * `to`:  required at least once if not `to_group` is given - number(s) of recipient(s)
-  * `to_group`: required once if not `to` is given - recipient group id in signal-cli format
+  * `to`:  required at least once if not `to_group` is given - phone number(s)/account name(s) of recipient(s)
+  * `to_group`: required once if `to` is not given - recipient group id in signal-cli format (as per signal-cli `listGroups` subcommand output; using url escaping where necessary, e.g. `=` escaped as `%3D`) 
   * `omit_subject`: optional boolean - mail subject will not be forwarded if `true`, defaults to `false`
   * `omit_body`: optional boolean - mail body will not be forwarded if `true`, defaults to `false`
   * `body_separator`: optional string - characters to insert between subject line and body, defaults to `\n\n`
