@@ -32,7 +32,7 @@ Examples:
 Numbers need to be register with signal-cli. The easiest way to to this is interact with the command line signal-cli client. This is only possible if the smtp2signal gateway is not running (more specifically the rest api container).
 
 - Stop smtp2signal: `$ docker-compose stop`
-- Run signal-cli container: `$ docker run -it --entrypoint sh -u signal-api -v "$PWD/data/signal-cli":"/home/.local/share/signal-cli" smtp2signal_signal-cli-rest-api`
+- Run signal-cli container: `$ docker-compose run -u signal-api -it --entrypoint bash signal-cli-rest-api`
 - [Configure signal-cli](https://github.com/AsamK/signal-cli#usage): Register number, ...
 - Restart smtp2signal `$ docker-compose up -d`
 
