@@ -1,7 +1,7 @@
 version: "3"
 services:
   smtp2signal:
-    hostname: smtp2signal
+    hostname: "smtp2signal.docker"
     build: ./smtp2signal
     restart: always
     environment:
