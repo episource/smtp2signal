@@ -5,10 +5,11 @@ name = "pypi"
 
 [packages]
 aiohttp = "*"
-aiosmtpd = {git = "https://github.com/aio-libs/aiosmtpd.git"}
+aiosmtpd = "*"
 html2text = "*"
+yarl = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.9"
+python_version = "3.12"
