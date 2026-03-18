@@ -5,12 +5,14 @@ import aiosmtpd.controller
 import aiosmtpd.smtp
 import asyncio
 import base64
+import configparser
 import email
 import email.policy
 import html2text
 import json
 import logging
 import os
+import re
 import secrets
 import signal
 import sys
@@ -23,6 +25,7 @@ SIGNAL_SMTP_PORT = os.getenv("SIGNAL_SMTP_PORT", "8025")
 SIGNAL_SMTP_HOST = os.getenv("SIGNAL_SMTP_HOST", "localhost")
 SIGNAL_SMTP_TOKEN_FILE = os.getenv("SIGNAL_SMTP_TOKEN_FILE", None)
 SIGNAL_SMTP_TOKEN_LEN = 16
+SIGNAL_SMTP_VARS_FILE = os.getenv("SIGNAL_SMTP_VARS_FILE", None)
 SIGNAL_CLI_BASE_URL = os.getenv("SIGNAL_CLI_BASE_URL", "http://127.0.0.1:8080")
 SIGNAL_CLI_SEND_API = SIGNAL_CLI_BASE_URL.rstrip("/") + "/v2/send"
 SMTP_POLICY = email.policy.SMTPUTF8.clone(raise_on_defect=True)
@@ -106,6 +109,10 @@ class Smtp2SignalHandler:
         self.html2text = html2text.HTML2Text(bodywidth=0)
         self.html2text.ignore_tables = True
 
+        self.query_substitutions = configparser.ConfigParser(interpolation=None)
+        if SIGNAL_SMTP_VARS_FILE:
+            self.query_substitutions.read(SIGNAL_SMTP_VARS_FILE)
+
     async def handle_DATA(self, server, session, envelope):
         session.data_received = True
 
@@ -116,7 +123,7 @@ class Smtp2SignalHandler:
 
             mail_message = email.message_from_bytes(envelope.content, policy=SMTP_POLICY)
 
-            self.send_signal_as_task(**self.build_signal(rcpttos, mail_message))
+            self.send_signal_as_task(**self.build_signal(mailfrom, rcpttos, mail_message))
         except Exception as exc:
             logging.warning(f"Failed to handle smtp data: {exc}", exc_info=exc)
             return f"451 {exc}"
@@ -131,7 +138,7 @@ class Smtp2SignalHandler:
     async def handle_exception(self, error):
         logging.warning(f"Failed to handle smtp request: {error}", exc_info=error)
 
-    def build_signal(self, rcpttos, mail_message):
+    def build_signal(self, mailfrom, rcpttos, mail_message):
         def ensure_list(v):
             if (isinstance(v, list)):
                 return v
@@ -139,6 +146,20 @@ class Smtp2SignalHandler:
 
         def str2bool(v):
               return str(ensure_list(v)[-1]).lower() in ("yes", "true", "t", "1")
+
+        def substitute_query_var(m):
+            token = m.group(1)
+
+            if not self.query_substitutions.has_section(mailfrom):
+                self.query_substitutions.add_section(mailfrom)
+            
+            if self.query_substitutions.has_option(mailfrom, token):
+                substitute = self.query_substitutions.get(mailfrom, token)
+                logging.info(f"Substituting token __{token}__ with {substitute}.")
+                return self.query_substitutions.get(mailfrom, token)
+
+            logging.warning(f"No matching query var for token __{token}__.")
+            return f"__{token}__"
 
 
         mail_subject = mail_message['subject']
@@ -152,9 +173,14 @@ class Smtp2SignalHandler:
             mail_text = mail_message.get_content()
         
         first_attachment = next((a.get_content() for a in mail_message.iter_attachments()), None)
-
-        addr_parts = rcpttos[0].strip("<> ").split('@', 1)
+        
         # ignore domain part
+        addr_parts = rcpttos[0].strip("<> ").split('@', 1)
+        query_string = addr_parts[0]
+
+        if self.query_substitutions.has_option(mailfrom, "defaults"):
+            query_string = self.query_substitutions.get(mailfrom, "defaults") + "&" + query_string
+        query_string = re.sub(r"__([a-zA-Z0-9_-]+)__", substitute_query_var, query_string)
 
         # local part of RCPT TO (as per RFC5321) is treated as url query string
         # with the following exceptions:
@@ -162,13 +188,14 @@ class Smtp2SignalHandler:
         # 2. (unencoded) literal "--" is replaced by "="
         # 3. (unencoded) literal "++" is replaced by "&"
         # 4. (unencoded) literal ".." is replaced by "%"
-        options = parse_qs(addr_parts[0].replace("++","&").replace("+","%2B").replace("--","=").replace("..","%"))
+        query_string = query_string.replace("++","&").replace("+","%2B").replace("--","=").replace("..","%")
+        options = parse_qs(query_string)
 
         logging.warning(f"building signal with options {options}")
         if (not options.get("to") and not options.get("to_group")):
-            raise RuntimeError(f"rcpttos[0] is missing to/to_group-argument: {rcpttos[0]}")
+            raise RuntimeError(f"rcpttos[0] is missing to/to_group-argument: {rcpttos[0]} ({query_string})")
         if (not options.get("from")):
-            raise RuntimeError(f"rcpttos[0] is missing from-argument: {rcpttos[0]}")
+            raise RuntimeError(f"rcpttos[0] is missing from-argument: {rcpttos[0]} ({query_string})")
 
         if (options.get("to_group")):
             to_raw = ensure_list(options.get("to_group"))[-1]

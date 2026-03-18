@@ -6,7 +6,8 @@ services:
     restart: always
     environment:
       SIGNAL_CLI_BASE_URL: http://signal-cli-rest-api:8080/
-      SIGNAL_SMTP_TOKEN_FILE: /home/smtp2signal.token 
+      SIGNAL_SMTP_TOKEN_FILE: /home/smtp2signal.token
+      SIGNAL_SMTP_VARS_FILE: /home/smtp2signal.vars
     ports:
       - 8025:8025
     volumes:
