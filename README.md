@@ -13,8 +13,11 @@ This projects provides a dockerized smtp server that forwards incoming mails as 
 The smtp server evaluates the first mail recipient's address:
 - The domain part (right side of @) must be valid but is ignored otherwise
 - The local part (left side of @) is parsed as query string with the following exceptions:
-  * `+` is treated literally and not replaced by space
+  * `+` is treated literally and not replaced by space (except `++`)
   * `--` maybe used to substitute `=` if not supported by mail client
+  * `++` maybe used to substitute `&` if not supported by mail client
+  * `..` maybe used to substitute `%` if not supported by mail client
+    - as a consequence `..20` can be used as url escape for whitespace if `%20` is not supported by mail client
 - If an argument is expected only once, but given multiple times, the last argument value takes precedence. The following arguments are supported:
   * `from`: required once - sender account number; must be registered for use with signal-cli, otherwise sending the signal message will be refused
   * `to`:  required at least once if not `to_group` is given - phone number(s)/account name(s) of recipient(s)

@@ -105,7 +105,7 @@ class Smtp2SignalHandler:
         self.rest_client = rest_client
         self.html2text = html2text.HTML2Text(bodywidth=0)
         self.html2text.ignore_tables = True
-    
+
     async def handle_DATA(self, server, session, envelope):
         session.data_received = True
 
@@ -156,11 +156,13 @@ class Smtp2SignalHandler:
         addr_parts = rcpttos[0].strip("<> ").split('@', 1)
         # ignore domain part
 
-        # local part of RCPT TO (as per RFC5321) ist treated as url query string
+        # local part of RCPT TO (as per RFC5321) is treated as url query string
         # with the following exceptions:
         # 1. "+" is treated literally and not replaced by space
         # 2. (unencoded) literal "--" is replaced by "="
-        options = parse_qs(addr_parts[0].replace("+","%2B").replace("--","="))
+        # 3. (unencoded) literal "++" is replaced by "&"
+        # 4. (unencoded) literal ".." is replaced by "%"
+        options = parse_qs(addr_parts[0].replace("++","&").replace("+","%2B").replace("--","=").replace("..","%"))
 
         logging.warning(f"building signal with options {options}")
         if (not options.get("to") and not options.get("to_group")):
