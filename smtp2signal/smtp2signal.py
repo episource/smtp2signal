@@ -107,6 +107,8 @@ class Smtp2SignalHandler:
         self.html2text.ignore_tables = True
     
     async def handle_DATA(self, server, session, envelope):
+        session.data_received = True
+
         try:
             peer = session.peer
             mailfrom = envelope.mail_from
@@ -120,6 +122,14 @@ class Smtp2SignalHandler:
             return f"451 {exc}"
 
         return '250 OK'
+
+    async def handle_QUIT(self, server, session, envelope):
+        if not hasattr(session, 'data_received') or not session.data_received:
+            logging.warning(f"No DATA received from {envelope.mail_from} ({session.host_name}).")
+        return '221 Bye'
+
+    async def handle_exception(self, error):
+        logging.warning(f"Failed to handle smtp request: {error}", exc_info=error)
 
     def build_signal(self, rcpttos, mail_message):
         def ensure_list(v):
