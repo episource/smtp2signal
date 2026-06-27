@@ -147,20 +147,53 @@ class Smtp2SignalHandler:
         def str2bool(v):
               return str(ensure_list(v)[-1]).lower() in ("yes", "true", "t", "1")
 
+        # Substitution tokens are identified by two leading and trealing underlines.
+        # E.g. __name__ is a substitution token with name "name".
+        # These tokens are replaced by looking up the key "name" in the the 
+        # SIGNAL_SMTP_VARS_FILE (if any, ini format), searching sections in order:
+        #  1. {mailto_domain},{mailfrom}
+        #  2. {mailto_domain},{mailfrom_domain}
+        #  3. {mailfrom}
+        #  4. {mailfrom_domain}
+        #  5. {mailto_domain}
+        #  6. DEFAULT
+        # In case no value is found, the token is returned (e.g. __name__)
+        def lookup_substitution(token):
+            section_order = [
+                f"{mailto_domain},{mailfrom}",
+                f"{mailto_domain},{mailfrom_domain}",
+                mailfrom,
+                mailfrom_domain,
+                mailto_domain,
+                # DEFAULT
+            ]
+
+            for section in section_order:
+                if self.query_substitutions.has_section(section) and token in self.query_substitutions._sections[section]:
+                    return self.query_substitutions.get(section, token)
+                    break
+               
+            if token in self.query_substitutions.defaults():
+                return self.query_substitutions.get(configparser.DEFAULTSECT, token)
         def substitute_query_var(m):
             token = m.group(1)
 
-            if not self.query_substitutions.has_section(mailfrom):
-                self.query_substitutions.add_section(mailfrom)
-            
-            if self.query_substitutions.has_option(mailfrom, token):
-                substitute = self.query_substitutions.get(mailfrom, token)
-                logging.info(f"Substituting token __{token}__ with {substitute}.")
-                return self.query_substitutions.get(mailfrom, token)
+            substitution = lookup_substitution(token)
+            if substitution is None:
+                logging.warning(f"No matching substitution for variable reference __{token}__.")
+                return f"__{token}__"
 
-            logging.warning(f"No matching query var for token __{token}__.")
-            return f"__{token}__"
-
+            logging.info(f"Substituting token __{token}__ with {substitution}.")
+            return substitution
+        
+        
+        mailfrom = mailfrom.strip("<> ").lower()
+        mailfrom_domain = mailfrom.rsplit("@", 1)[-1]
+        
+        mailto = rcpttos[0].strip("<> ").lower()
+        mailto_parts = mailto.rsplit("@", 1)
+        mailto_local = mailto_parts[0]
+        mailto_domain = mailto_parts[1]
 
         mail_subject = mail_message['subject']
         mail_body = mail_message.get_body(preferencelist=('plain'))
@@ -173,13 +206,14 @@ class Smtp2SignalHandler:
             mail_text = mail_message.get_content()
         
         first_attachment = next((a.get_content() for a in mail_message.iter_attachments()), None)
+         
         
         # ignore domain part
-        addr_parts = rcpttos[0].strip("<> ").split('@', 1)
-        query_string = addr_parts[0]
+        query_string = mailto_local
 
-        if self.query_substitutions.has_option(mailfrom, "defaults"):
-            query_string = self.query_substitutions.get(mailfrom, "defaults") + "&" + query_string
+        defaults = lookup_substitution("defaults")
+        if not defaults is None:
+            query_string = defaults + "&" + query_string
         query_string = re.sub(r"__([a-zA-Z0-9_-]+)__", substitute_query_var, query_string)
 
         # local part of RCPT TO (as per RFC5321) is treated as url query string
@@ -188,10 +222,12 @@ class Smtp2SignalHandler:
         # 2. (unencoded) literal "--" is replaced by "="
         # 3. (unencoded) literal "++" is replaced by "&"
         # 4. (unencoded) literal ".." is replaced by "%"
+        # Quoting using urlencoding, potentially using .. instead of %.
+        # E.g. to encode ".." use "..2E..2E"
         query_string = query_string.replace("++","&").replace("+","%2B").replace("--","=").replace("..","%")
         options = parse_qs(query_string)
 
-        logging.warning(f"building signal with options {options}")
+        logging.warning(f"building signal with options {options} ({query_string})")
         if (not options.get("to") and not options.get("to_group")):
             raise RuntimeError(f"rcpttos[0] is missing to/to_group-argument: {rcpttos[0]} ({query_string})")
         if (not options.get("from")):

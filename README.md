@@ -10,14 +10,22 @@ This projects provides a dockerized smtp server that forwards incoming mails as 
 - Done. The smtp server now listens at port 8025 (all interfaces). See [Signal Message Routing](#signal-message-routing) for howto send messages.
 
 # Signal Message Routing
-The smtp server evaluates the first mail recipient's address:
+The smtp server derives the signal recipients and message format from the mail's sender and recipient addresses.
+
+All signal message parameters can be encoded in the local part of the receipient address.
+
+Additionally default settings and predefined tokens are looked up in a ini-style `vars` file.
+
+## recipient address evaluation
 - The domain part (right side of @) must be valid but is ignored otherwise
-- The local part (left side of @) is parsed as query string with the following exceptions:
+- The local part (left side of @) is parsed as query string with the following exceptions/parsing extensions:
   * `+` is treated literally and not replaced by space (except `++`)
   * `--` maybe used to substitute `=` if not supported by mail client
   * `++` maybe used to substitute `&` if not supported by mail client
   * `..` maybe used to substitute `%` if not supported by mail client
-    - as a consequence `..20` can be used as url escape for whitespace if `%20` is not supported by mail client
+    - as a consequence `..20` can be used as url escape for whitespace if `%20` is not supported by mail client.
+  * `__VARIABLE__` is replaced by the value of VARIABLE if defined in the vars file. If undefined, the token is preserved as-is. The name of the variable must be at least two characters long. The query string token should consist of upper case characters only. The variable name in the `vars` file is all lower case.
+  
 - If an argument is expected only once, but given multiple times, the last argument value takes precedence. The following arguments are supported:
   * `from`: required once - sender account number; must be registered for use with signal-cli, otherwise sending the signal message will be refused
   * `to`:  required at least once if not `to_group` is given - phone number(s)/account name(s) of recipient(s)
@@ -30,6 +38,21 @@ The smtp server evaluates the first mail recipient's address:
 Examples:
  - `from--+49123456789&to--+49987654321&to--+49192837465@example.com` - message forwarded to +49987654321 and +49192837465 using +49123456789 as sender
  - `from--+49123456789&to_group--+xh18rfD4ewA0AikA+Yi5tfrSaikS5fCfnTt5VEJAaQ%3D&--omit_body=true@example.com` - message subject forwarded to given group using +49123456789 as sender
+
+## vars file
+The `vars` file is an ini-style configuration file. `_VARIABLE` tokens are replaced with contents from this file. Also the query string is initialized to the value of the `defaults` variable, with explicit configuration (see above) taking precedence. 
+
+
+Variables (including `defaults`) are looked up in the ini sections given below. The first match wins.
+ 1. {mailto_domain},{mailfrom}
+ 2. {mailto_domain},{mailfrom_domain}
+ 3. {mailfrom}
+ 4. {mailfrom_domain}
+ 5. {mailto_domain}
+ 6. DEFAULT
+ 
+The section names must be all lower case. 
+
 
 # Setup signal-cli
 Numbers need to be register with signal-cli. The easiest way to to this is interact with the command line signal-cli client. This is only possible if the smtp2signal gateway is not running (more specifically the rest api container).
