@@ -150,31 +150,30 @@ class Smtp2SignalHandler:
         # Substitution tokens are identified by two leading and trealing underlines.
         # E.g. __name__ is a substitution token with name "name".
         # These tokens are replaced by looking up the key "name" in the the 
-        # SIGNAL_SMTP_VARS_FILE (if any, ini format), searching sections in order:
-        #  1. {mailto_domain},{mailfrom}
-        #  2. {mailto_domain},{mailfrom_domain}
-        #  3. {mailfrom}
-        #  4. {mailfrom_domain}
-        #  5. {mailto_domain}
-        #  6. DEFAULT
+        # SIGNAL_SMTP_VARS_FILE (if any, ini format), searching sections in order.
         # In case no value is found, the token is returned (e.g. __name__)
         def lookup_substitution(token):
             section_order = [
-                f"{mailto_domain},{mailfrom}",
-                f"{mailto_domain},{mailfrom_domain}",
+                f"{mailto}:{mailfrom}",
+                f"{mailto_domain}:{mailfrom}",
+                f"{mailto}:{mailfrom_domain}",
+                f"{mailto_domain}:{mailfrom_domain}",
+                mailto,
                 mailfrom,
-                mailfrom_domain,
                 mailto_domain,
+                mailfrom_domain,
                 # DEFAULT
-            ]
+            ] 
+            
+            substitution = None
 
             for section in section_order:
                 if self.query_substitutions.has_section(section) and token in self.query_substitutions._sections[section]:
-                    return self.query_substitutions.get(section, token)
-                    break
-               
+                    substitution = (substitution or "") + "&" + self.query_substitutions.get(section, token)
             if token in self.query_substitutions.defaults():
-                return self.query_substitutions.get(configparser.DEFAULTSECT, token)
+                substitution = (substitution or "") + "&" + self.query_substitutions.get(configparser.DEFAULTSECT, token)
+            
+            return substitution
         def substitute_query_var(m):
             token = m.group(1)
 

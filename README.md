@@ -43,13 +43,16 @@ Examples:
 The `vars` file is an ini-style configuration file. `_VARIABLE` tokens are replaced with contents from this file. Also the query string is initialized to the value of the `defaults` variable, with explicit configuration (see above) taking precedence. 
 
 
-Variables (including `defaults`) are looked up in the ini sections given below. The first match wins.
- 1. {mailto_domain},{mailfrom}
- 2. {mailto_domain},{mailfrom_domain}
- 3. {mailfrom}
- 4. {mailfrom_domain}
- 5. {mailto_domain}
- 6. DEFAULT
+Variables (including `defaults`) are looked up in the ini sections given below. Multiple accurances are merged, while conflicting options from higher priority sections take precedence.
+ 1.  {mailto}:{mailfrom}
+ 2.  {mailto_domain}:{mailfrom}
+ 3.  {mailto}:{mailfrom_domain}
+ 4.  {mailto_domain}:{mailfrom_domain}
+ 5.  {mailto}
+ 6.  {mailfrom}
+ 7.  {mailto_domain}
+ 8.  {mailfrom_domain}
+ 9.  DEFAULT
  
 The section names must be all lower case. 
 
